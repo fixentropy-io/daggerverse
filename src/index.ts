@@ -1,25 +1,10 @@
-/**
- * A generated module for Dragee functions
- *
- * This module has been generated via dagger init and serves as a reference to
- * basic module structure as you get started with Dagger.
- *
- * Two functions have been pre-created. You can modify, delete, or add to them,
- * as needed. They demonstrate usage of arguments and return types using simple
- * echo and grep commands. The functions can be called from the dagger CLI or
- * from one of the SDKs.
- *
- * The first line in this comment block is a short description line and the
- * rest is a long description with more detail on the module's purpose or usage,
- * if appropriate. All modules should have a short description.
- */
 import {
-  dag,
   Container,
+  dag,
   Directory,
-  object,
   func,
   GitRef,
+  object,
   Secret,
 } from "@dagger.io/dagger";
 
@@ -148,7 +133,7 @@ export class Dragee {
         "Either a source directory or a git url and a branch name must be provided"
       );
     }
-    const app_files = source ?? this.get_repository(git_url, branch).tree();
+    const source_files = source ?? this.get_repository(git_url, branch).tree();
 
     if (!git_url && !tag) {
       throw new Error(
@@ -157,9 +142,15 @@ export class Dragee {
     }
     const tag_update = await this.get_tag(tag, git_url);
 
-    await this.lint_and_test(app_files);
+    const app = this.mount_app_with(source_files);
 
-    await this.build_and_publish(npm_token, app_files, tag_update);
+    await this.lint(app);
+    await this.test(app);
+
+    const built_app = await this.build(source_files)
+    const built_app_directory = built_app.directory(".");
+    await this.bump_and_publish(tag_update, built_app_directory, npm_token);
+    // await this.build_and_publish(npm_token, app_files, tag_update);
 
     // return app;
     // pulling the git tags
@@ -180,23 +171,55 @@ export class Dragee {
     return retrieved_tag;
   }
 
+  /**
+   * This function can be use to publish the project on a release trigger.
+   * This function is mandatory due to how the asserters are used by dragee's cli and cannot be built to js files for the moment.
+   * @param npm_token - the npm token to use to publish the project
+   * @param source - the source directory
+   * @param git_url - the git url of the repository
+   * @param branch - the branch to use
+   * @param tag - the tag version to update the project to
+   */
   @func()
-  async build_and_publish(
+  async publish(
     npm_token: Secret,
-    source: Directory,
-    tag: string
-  ): Promise<Container> {
-    const built_app = await this.build(source);
-    // would be nice to kind of "compose" the directory to select what will be published rather than everything that is not excluded by the .gitignore
-    const built_files = built_app.directory(".");
+    source?: Directory,
+    git_url?: string,
+    branch?: string,
+    tag?: string
+  ) {
+    if (!source || (!git_url && !branch)) {
+      throw new Error(
+        "Either a source directory or a git url and a branch name must be provided"
+      );
+    }
+    const source_files = source ?? this.get_repository(git_url, branch).tree();
 
-    const updated_version_app = await this.update_app_version(tag, built_files);
-    const published_app = await this.publish(updated_version_app, npm_token);
+    if (!git_url && !tag) {
+      throw new Error(
+        "Either a git url or a tag must be provided to be able to apply a version update"
+      );
+    }
+    const tag_update = await this.get_tag(tag, git_url);
+
+    const app = this.mount_app_with(source_files);
+
+    await this.lint(app);
+    await this.test(app);
+
+    const app_directory = app.directory(".");
+    await this.bump_and_publish(tag_update, app_directory, npm_token);
+  }
+  
+  @func()
+  async bump_and_publish(tag: string, source: Directory, npm_token: Secret): Promise<Container> {
+    const updated_version_app = await this.update_app_version(tag, source);
+    const published_app = await this.publish_app(updated_version_app, npm_token);
     return published_app;
   }
 
   @func()
-  async publish(app: Container, npm_token: Secret): Promise<Container> {
+  async publish_app(app: Container, npm_token: Secret): Promise<Container> {
     const published_app = app
       .withSecretVariable("NPM_TOKEN", npm_token)
       .withExec(["npm", "publish", "--access", "public"]);
