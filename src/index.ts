@@ -279,7 +279,7 @@ export class Dragee {
       published_app = published_app.withSecretVariable("NPM_TOKEN", npm_token);
     }
 
-    published_app = published_app.withExec(publishCmd);
+    published_app = published_app.withExec(["env"]).withExec(publishCmd);
 
     await published_app.stdout();
     await published_app.stderr();
