@@ -271,9 +271,15 @@ export class Dragee {
    */
   @func()
   async publish_app(app: Container, npm_token: Secret): Promise<Container> {
-    const published_app = app
-      .withSecretVariable("NPM_TOKEN", npm_token)
-      .withExec(["npm", "publish", "--access", "public"]);
+    let publishCmd = ["npm", "publish", "--access", "public"];
+
+    let published_app = app;
+
+    if (npm_token) {
+      published_app = published_app.withSecretVariable("NPM_TOKEN", npm_token);
+    }
+
+    published_app = published_app.withExec(publishCmd);
 
     await published_app.stdout();
     await published_app.stderr();
