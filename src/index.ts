@@ -175,7 +175,7 @@ export class Dragee {
    */
   @func()
   async on_publish(
-    npm_token: Secret,
+    npm_token?: Secret,
     source?: Directory,
     git_url?: string,
     branch?: string,
@@ -220,7 +220,7 @@ export class Dragee {
    */
   @func()
   async publish(
-    npm_token: Secret,
+    npm_token?: Secret,
     source?: Directory,
     git_url?: string,
     branch?: string,
@@ -257,7 +257,7 @@ export class Dragee {
    * @returns the published app
    */
   @func()
-  async bump_and_publish(tag: string, source: Directory, npm_token: Secret): Promise<Container> {
+  async bump_and_publish(tag: string, source: Directory, npm_token?: Secret): Promise<Container> {
     const updated_version_app = await this.update_app_version(tag, source);
     const published_app = await this.publish_app(updated_version_app, npm_token);
     return published_app;
@@ -270,10 +270,16 @@ export class Dragee {
    * @returns the published app
    */
   @func()
-  async publish_app(app: Container, npm_token: Secret): Promise<Container> {
-    const published_app = app
-      .withSecretVariable("NPM_TOKEN", npm_token)
-      .withExec(["npm", "publish", "--access", "public"]);
+  async publish_app(app: Container, npm_token?: Secret): Promise<Container> {
+    let publishCmd = ["npm", "publish", "--access", "public"];
+
+    let published_app = app;
+
+    if (npm_token) {
+      published_app = published_app.withSecretVariable("NPM_TOKEN", npm_token);
+    }
+
+    published_app = published_app.withExec(publishCmd);
 
     await published_app.stdout();
     await published_app.stderr();
