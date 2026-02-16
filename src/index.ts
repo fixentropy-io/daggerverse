@@ -277,9 +277,14 @@ export class Dragee {
 
     if (npm_token) {
       published_app = published_app.withSecretVariable("NPM_TOKEN", npm_token);
+    } else {
+      published_app.withEnvVariable("ACTIONS_ID_TOKEN_REQUEST_URL", process.env.ACTIONS_ID_TOKEN_REQUEST_URL)
+      .withEnvVariable("ACTIONS_ID_TOKEN_REQUEST_TOKEN", process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN)
     }
 
-    published_app = published_app.withExec(["env"]).withExec(publishCmd);
+    published_app = published_app
+      .withExec(["env"])
+      .withExec(publishCmd);
 
     await published_app.stdout();
     await published_app.stderr();
