@@ -356,7 +356,7 @@ export class Dragee {
     
     const published_app = app
       .withEnvVariable("ACTIONS_ID_TOKEN", token)
-      .withExec(["npm", "publish", "--access", "public", "--provenance"]);
+      .withExec(["npm", "publish", "--access", "public"]);
 
     await published_app.stdout();
     await published_app.stderr();
