@@ -234,7 +234,7 @@ export class Dragee {
   @func()
   async publish_release(
     oidcUrl: string,
-    oidcToken: Secret,
+    oidcToken: string,
     git_url: string,
   ): Promise<void> {
 
@@ -316,7 +316,7 @@ export class Dragee {
    * @param tag the tag to use for the version bump
    * @returns the published app
    */
-  async bump_and_publish_with_dynamic_token(oidcUrl: string, oidcToken: Secret, source: Directory, tag: string): Promise<Container> {
+  async bump_and_publish_with_dynamic_token(oidcUrl: string, oidcToken: string, source: Directory, tag: string): Promise<Container> {
     const updated_version_app = await this.update_app_version(tag, source);
     const published_app = await this.publish_app_with_dynamic_token(oidcUrl, oidcToken, updated_version_app);
     return published_app;
@@ -347,10 +347,12 @@ export class Dragee {
    * @param app the app to publish
    * @returns the published app
    */
-  async publish_app_with_dynamic_token(oidcUrl: string, oidcToken: Secret, app: Container): Promise<Container> {
+  async publish_app_with_dynamic_token(oidcUrl: string, oidcToken: string, app: Container): Promise<Container> {
+    const tokenSecret = dag.setSecret("oidc", oidcToken)
+
     const token = await dag
       .github()
-      .getOidctoken(oidcToken, oidcUrl);
+      .getOidctoken(tokenSecret, oidcUrl);
     
     const published_app = app
       .withEnvVariable("ACTIONS_ID_TOKEN", token)
