@@ -238,6 +238,9 @@ export class Dragee {
     git_url: string,
   ): Promise<void> {
 
+    console.log("OIDC URL:", oidcUrl);
+    console.log("OIDC TOKEN present:", !!oidcToken);
+
     if (!git_url) {
       throw new Error(
         "A git url must be provided to be able to apply a version update"
@@ -351,6 +354,8 @@ export class Dragee {
     const published_app = app
       .withEnvVariable("ACTIONS_ID_TOKEN_REQUEST_URL", oidcUrl)
       .withEnvVariable("ACTIONS_ID_TOKEN_REQUEST_TOKEN", oidcToken)
+      .withExec(["sh","-c","echo OIDC_URL=$ACTIONS_ID_TOKEN_REQUEST_URL"])
+      .withExec(["sh","-c","echo OIDC_TOKEN_PRESENT=${ACTIONS_ID_TOKEN_REQUEST_TOKEN:+yes}"])
       .withExec(["npm", "publish", "--access", "public"]);
 
     await published_app.stdout();
