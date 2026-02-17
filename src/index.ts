@@ -238,6 +238,12 @@ export class Dragee {
     git_url: string,
   ): Promise<void> {
 
+    console.log("GITHUB_REPOSITORY =", process.env.GITHUB_REPOSITORY)
+    console.log("GITHUB_WORKFLOW =", process.env.GITHUB_WORKFLOW)
+    console.log("GITHUB_REF =", process.env.GITHUB_REF)
+    console.log("GITHUB_SHA =", process.env.GITHUB_SHA)
+    console.log("GITHUB_RUN_ID =", process.env.GITHUB_RUN_ID)
+
     if (!git_url) {
       throw new Error(
         "A git url must be provided to be able to apply a version update"
