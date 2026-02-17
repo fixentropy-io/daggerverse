@@ -20,6 +20,14 @@ import {
 const PACKAGE_JSON = "package.json";
 const BUN_LOCKB = "bun.lockb";
 
+type PublishAppWithDynamicTokenParams = {
+  GITHUB_REPOSITORY: string;
+  GITHUB_WORKFLOW: string;
+  GITHUB_REF: string;
+  GITHUB_SHA: string;
+  GITHUB_RUN_ID: string;
+}
+
 @object()
 export class Dragee {
   /**
@@ -249,6 +257,14 @@ export class Dragee {
     console.log("GITHUB_SHA =", varSha)
     console.log("GITHUB_RUN_ID =", varRunId)
 
+    const params: PublishAppWithDynamicTokenParams = {
+      GITHUB_REPOSITORY: varRepo,
+      GITHUB_WORKFLOW: varWorkflow,
+      GITHUB_REF: varRef,
+      GITHUB_SHA: varSha,
+      GITHUB_RUN_ID: varRunId,
+    }
+
     if (!git_url) {
       throw new Error(
         "A git url must be provided to be able to apply a version update"
@@ -268,7 +284,7 @@ export class Dragee {
     const built_app = await this.build_app(app);
     const built_app_directory = built_app.directory(".");
     
-    await this.bump_and_publish_with_dynamic_token(oidcUrl, oidcToken, built_app_directory, latestTag);
+    await this.bump_and_publish_with_dynamic_token(oidcUrl, oidcToken, built_app_directory, latestTag, params);
   }
 
   /**
@@ -327,9 +343,9 @@ export class Dragee {
    * @param tag the tag to use for the version bump
    * @returns the published app
    */
-  async bump_and_publish_with_dynamic_token(oidcUrl: string, oidcToken: string, source: Directory, tag: string): Promise<Container> {
+  async bump_and_publish_with_dynamic_token(oidcUrl: string, oidcToken: string, source: Directory, tag: string, params: PublishAppWithDynamicTokenParams): Promise<Container> {
     const updated_version_app = await this.update_app_version(tag, source);
-    const published_app = await this.publish_app_with_dynamic_token(oidcUrl, oidcToken, updated_version_app);
+    const published_app = await this.publish_app_with_dynamic_token(oidcUrl, oidcToken, updated_version_app, params);
     return published_app;
   }
 
@@ -358,7 +374,7 @@ export class Dragee {
    * @param app the app to publish
    * @returns the published app
    */
-  async publish_app_with_dynamic_token(oidcUrl: string, oidcToken: string, app: Container): Promise<Container> {
+  async publish_app_with_dynamic_token(oidcUrl: string, oidcToken: string, app: Container, params: PublishAppWithDynamicTokenParams): Promise<Container> {
     const tokenSecret = dag.setSecret("oidc", oidcToken)
 
     const token = await dag
@@ -368,11 +384,11 @@ export class Dragee {
     const published_app = app
       //.withEnvVariable("ACTIONS_ID_TOKEN", token)
       .withEnvVariable("GITHUB_ACTIONS", "true")
-      .withEnvVariable("GITHUB_REPOSITORY", process.env.GITHUB_REPOSITORY!)
-      .withEnvVariable("GITHUB_WORKFLOW", process.env.GITHUB_WORKFLOW!)
-      .withEnvVariable("GITHUB_REF", process.env.GITHUB_REF!)
-      .withEnvVariable("GITHUB_SHA", process.env.GITHUB_SHA!)
-      .withEnvVariable("GITHUB_RUN_ID", process.env.GITHUB_RUN_ID!)
+      .withEnvVariable("GITHUB_REPOSITORY", params.GITHUB_REPOSITORY)
+      .withEnvVariable("GITHUB_WORKFLOW", params.GITHUB_WORKFLOW)
+      .withEnvVariable("GITHUB_REF", params.GITHUB_REF)
+      .withEnvVariable("GITHUB_SHA", params.GITHUB_SHA)
+      .withEnvVariable("GITHUB_RUN_ID", params.GITHUB_RUN_ID)
       .withEnvVariable("ACTIONS_ID_TOKEN_REQUEST_URL", oidcUrl)
       .withEnvVariable("ACTIONS_ID_TOKEN_REQUEST_TOKEN", oidcToken)
       .withExec(["npm", "publish", "--access", "public"]);
