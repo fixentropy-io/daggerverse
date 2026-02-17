@@ -4,5 +4,12 @@
   "sdk": {
     "source": "typescript"
   },
+  "dependencies": [
+    {
+      "name": "github",
+      "source": "github.com/jumppad-labs/daggerverse/github@main",
+      "pin": "d949672adab8fe692916f8e08e885b45bb53502c"
+    }
+  ],
   "disableDefaultFunctionCaching": true
 }
