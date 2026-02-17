@@ -1,6 +1,8 @@
 {
   "name": "Dragee",
-  "engineVersion": "v0.15.1",
-  "sdk": "typescript",
-  "source": "."
+  "engineVersion": "v0.19.10",
+  "sdk": {
+    "source": "typescript"
+  },
+  "disableDefaultFunctionCaching": true
 }

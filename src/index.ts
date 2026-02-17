@@ -77,7 +77,7 @@ export class Dragee {
 
   /**
    * It runs the tests of the project
-   * @param source The directory containing the project to test
+   * @param app The container containing the project to test
    * @returns a container with tests ran
    */
   @func()
@@ -106,13 +106,24 @@ export class Dragee {
   }
 
   /**
-   * This function runs the build of the project on a bun container
-   * @param source the directory containing the project to build
+   * This function mounts the application and runs the build of the project on a bun container
+   * @param app the directory containing the project to build
    * @returns a container with build ran
    */
   @func()
-  async build(source: Directory): Promise<Container> {
-    const built_app = this.mount_app_with(source).withExec([
+  async build(app: Directory): Promise<Container> {
+    const mounted_app = this.mount_app_with(app);
+    const built_app = await this.build_app(mounted_app);
+    return built_app;
+  }
+
+  /**
+   * This function runs the build of the project on a bun container
+   * @param app the directory containing the project to build
+   * @returns a container with build ran
+   */
+  async build_app(app: Container): Promise<Container> {
+    const built_app = app.withExec([
       "bun",
       "run",
       "build",
@@ -175,7 +186,7 @@ export class Dragee {
    */
   @func()
   async on_publish(
-    npm_token?: Secret,
+    npm_token: Secret,
     source?: Directory,
     git_url?: string,
     branch?: string,
@@ -193,7 +204,7 @@ export class Dragee {
         "Either a git url or a tag must be provided to be able to apply a version update"
       );
     }
-    const tag_update = await this.get_tag(tag, git_url);
+    const tag_update = await this.get_tag(git_url, tag);
 
     const app = this.mount_app_with(source_files);
 
@@ -205,14 +216,48 @@ export class Dragee {
     await this.bump_and_publish(tag_update, built_app_directory, npm_token);
   }
 
-  async get_tag(tag: string, git_url: string): Promise<string> {
-    const retrieved_tag = tag ?? (await this.get_latest_tag(git_url));
+  /**
+   * This function is executed to publish a release when it is triggered.
+   * The following operations are executed in this order:
+   * 1. Retrieve sources from Git
+   * 2. Lint the app
+   * 3. Test the app
+   * 4. Build the app
+   * 5. Bump the package version
+   * 6. Publish the app to npm registry
+   * 
+   * @param oidcUrl the OIDC URL to use for the token request
+   * @param oidcToken the OIDC token to use for the publish
+   * @param git_url the git url of the repository to clone and publish
+   * @param branch the branch to use - defaults to `main`
+   */
+  @func()
+  async publish_release(
+    oidcUrl: string,
+    oidcToken: string,
+    git_url: string,
+  ): Promise<void> {
 
-    if (retrieved_tag.startsWith("v")) {
-      return retrieved_tag.slice(1);
+    if (!git_url) {
+      throw new Error(
+        "A git url must be provided to be able to apply a version update"
+      );
     }
 
-    return retrieved_tag;
+    const source = this.get_repository(git_url).tree();
+    if (!source) {
+      throw new Error(
+        "No source directory has been found for the given git url"
+      );
+    }
+
+    const latestTag = await this.get_tag(git_url);
+    const app = await this.lint_and_test(source);
+    
+    const built_app = await this.build_app(app);
+    const built_app_directory = built_app.directory(".");
+    
+    await this.bump_and_publish_with_dynamic_token(oidcUrl, oidcToken, built_app_directory, latestTag);
   }
 
   /**
@@ -220,7 +265,7 @@ export class Dragee {
    */
   @func()
   async publish(
-    npm_token?: Secret,
+    npm_token: Secret,
     source?: Directory,
     git_url?: string,
     branch?: string,
@@ -238,7 +283,7 @@ export class Dragee {
         "Either a git url or a tag must be provided to be able to apply a version update"
       );
     }
-    const tag_update = await this.get_tag(tag, git_url);
+    const tag_update = await this.get_tag(git_url, tag);
 
     const app = this.mount_app_with(source_files);
 
@@ -257,9 +302,23 @@ export class Dragee {
    * @returns the published app
    */
   @func()
-  async bump_and_publish(tag: string, source: Directory, npm_token?: Secret): Promise<Container> {
+  async bump_and_publish(tag: string, source: Directory, npm_token: Secret): Promise<Container> {
     const updated_version_app = await this.update_app_version(tag, source);
     const published_app = await this.publish_app(updated_version_app, npm_token);
+    return published_app;
+  }
+
+  /**
+   * Bumps the version of the app and publishes it to npm using a dynamic OIDC token
+   * @param oidcUrl the OIDC URL to use for the token request
+   * @param oidcToken the OIDC token to use for the publish
+   * @param source the source directory of the project to bump the version
+   * @param tag the tag to use for the version bump
+   * @returns the published app
+   */
+  async bump_and_publish_with_dynamic_token(oidcUrl: string, oidcToken: string, source: Directory, tag: string): Promise<Container> {
+    const updated_version_app = await this.update_app_version(tag, source);
+    const published_app = await this.publish_app_with_dynamic_token(oidcUrl, oidcToken, updated_version_app);
     return published_app;
   }
 
@@ -270,25 +329,32 @@ export class Dragee {
    * @returns the published app
    */
   @func()
-  async publish_app(app: Container, npm_token?: Secret): Promise<Container> {
-    let publishCmd = ["npm", "publish", "--access", "public"];
-
-    let published_app = app;
-
-    if (npm_token) {
-      published_app = published_app.withSecretVariable("NPM_TOKEN", npm_token);
-    } else {
-      published_app.withEnvVariable("ACTIONS_ID_TOKEN_REQUEST_URL", process.env.ACTIONS_ID_TOKEN_REQUEST_URL)
-      .withEnvVariable("ACTIONS_ID_TOKEN_REQUEST_TOKEN", process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN)
-    }
-
-    published_app = published_app
-      .withExec(["env"])
-      .withExec(publishCmd);
+  async publish_app(app: Container, npm_token: Secret): Promise<Container> {
+    let published_app = app
+      .withSecretVariable("NPM_TOKEN", npm_token)
+      .withExec(["npm", "publish", "--access", "public"]);
 
     await published_app.stdout();
     await published_app.stderr();
 
+    return published_app;
+  }
+
+    /**
+   * Publishes the app to npm using a dynamic OIDC token
+   * @param oidcUrl the OIDC URL to use for the token request
+   * @param oidcToken the OIDC token to use for the publish
+   * @param app the app to publish
+   * @returns the published app
+   */
+  async publish_app_with_dynamic_token(oidcUrl: string, oidcToken: string, app: Container): Promise<Container> {
+    const published_app = app
+      .withEnvVariable("ACTIONS_ID_TOKEN_REQUEST_URL", oidcUrl)
+      .withEnvVariable("ACTIONS_ID_TOKEN_REQUEST_TOKEN", oidcToken)
+      .withExec(["npm", "publish", "--access", "public"]);
+
+    await published_app.stdout();
+    await published_app.stderr();
     return published_app;
   }
 
@@ -322,10 +388,25 @@ export class Dragee {
     return updated_app_version;
   }
 
+  /**
+   * Gets the repository by its url and branch name
+   * @param url the url of the repository
+   * @param branch the branch to use - defaults to `main`
+   * @returns the repository reference
+   */
   get_repository(url: string, branch = "main"): GitRef {
     const repo = dag.git(url).branch(branch);
-
     return repo;
+  }
+
+  async get_tag(git_url: string, tag?: string): Promise<string> {
+    const retrieved_tag = tag ?? (await this.get_latest_tag(git_url));
+
+    if (retrieved_tag.startsWith("v")) {
+      return retrieved_tag.slice(1);
+    }
+
+    return retrieved_tag;
   }
 
   /**
