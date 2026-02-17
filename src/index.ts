@@ -236,13 +236,18 @@ export class Dragee {
     oidcUrl: string,
     oidcToken: string,
     git_url: string,
+    varRepo: string,
+    varWorkflow: string,
+    varRef: string,
+    varSha: string,
+    varRunId: string,
   ): Promise<void> {
 
-    console.log("GITHUB_REPOSITORY =", process.env.GITHUB_REPOSITORY)
-    console.log("GITHUB_WORKFLOW =", process.env.GITHUB_WORKFLOW)
-    console.log("GITHUB_REF =", process.env.GITHUB_REF)
-    console.log("GITHUB_SHA =", process.env.GITHUB_SHA)
-    console.log("GITHUB_RUN_ID =", process.env.GITHUB_RUN_ID)
+    console.log("GITHUB_REPOSITORY =", varRepo)
+    console.log("GITHUB_WORKFLOW =", varWorkflow)
+    console.log("GITHUB_REF =", varRef)
+    console.log("GITHUB_SHA =", varSha)
+    console.log("GITHUB_RUN_ID =", varRunId)
 
     if (!git_url) {
       throw new Error(
@@ -361,7 +366,15 @@ export class Dragee {
       .getOidctoken(tokenSecret, oidcUrl);
     
     const published_app = app
-      .withEnvVariable("ACTIONS_ID_TOKEN", token)
+      //.withEnvVariable("ACTIONS_ID_TOKEN", token)
+      .withEnvVariable("GITHUB_ACTIONS", "true")
+      .withEnvVariable("GITHUB_REPOSITORY", process.env.GITHUB_REPOSITORY!)
+      .withEnvVariable("GITHUB_WORKFLOW", process.env.GITHUB_WORKFLOW!)
+      .withEnvVariable("GITHUB_REF", process.env.GITHUB_REF!)
+      .withEnvVariable("GITHUB_SHA", process.env.GITHUB_SHA!)
+      .withEnvVariable("GITHUB_RUN_ID", process.env.GITHUB_RUN_ID!)
+      .withEnvVariable("ACTIONS_ID_TOKEN_REQUEST_URL", oidcUrl)
+      .withEnvVariable("ACTIONS_ID_TOKEN_REQUEST_TOKEN", oidcToken)
       .withExec(["npm", "publish", "--access", "public"]);
 
     await published_app.stdout();
