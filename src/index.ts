@@ -18,7 +18,7 @@ import {
 } from "@dagger.io/dagger";
 
 const PACKAGE_JSON = "package.json";
-const BUN_LOCKB = "bun.lockb";
+const BUN_LOCK = "bun.lock";
 
 @object()
 export class Dragee {
@@ -51,11 +51,11 @@ export class Dragee {
   @func()
   install_dependencies(source: Directory): Container {
     const package_json = source.file(PACKAGE_JSON);
-    const lockb_file = source.file(BUN_LOCKB);
+    const lock_file = source.file(BUN_LOCK);
 
     return this.bun_container()
       .withWorkdir("/app")
-      .withFiles("/app", [package_json, lockb_file])
+      .withFiles("/app", [package_json, lock_file])
       .withExec(["bun", "install"]);
   }
 
